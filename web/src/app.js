@@ -1,10 +1,17 @@
 import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
 
 const canvas = document.querySelector("#scene");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: false,
+  preserveDrawingBuffer: true,
+});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x101314, 1);
 
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101314);
 scene.fog = new THREE.Fog(0x101314, 1.8, 4.8);
 
 const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 10);
