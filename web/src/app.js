@@ -147,21 +147,25 @@ animate();
 
 function fallbackSolveArm(x, y, z) {
   const baseHeight = 0.16;
-  const lengths = [0.28, 0.24, 0.12];
+  const upper = 0.28;
+  const forearm = 0.24;
+  const wrist = 0.12;
+  const lengths = [upper, forearm, wrist];
   const yaw = Math.atan2(z, x);
-  const target2d = [Math.hypot(x, z), y - baseHeight];
-  const angles = [20, 50, -20];
-
-  for (let step = 0; step < 180; step += 1) {
-    const end = planarEnd(lengths, angles);
-    const error = [target2d[0] - end[0], target2d[1] - end[1]];
-    if (Math.hypot(error[0], error[1]) < 0.002) break;
-    for (let joint = 2; joint >= 0; joint -= 1) {
-      const derivative = planarDerivative(lengths, angles, joint);
-      const gradient = error[0] * derivative[0] + error[1] * derivative[1];
-      angles[joint] = clamp(angles[joint] + gradient * 18, -135, 135);
-    }
-  }
+  const radial = Math.hypot(x, z);
+  const targetY = y - baseHeight;
+  const lower = forearm + wrist;
+  const maxReach = upper + lower;
+  const minReach = Math.abs(upper - lower);
+  const distance = clamp(Math.hypot(radial, targetY), minReach + 0.001, maxReach - 0.001);
+  const targetAngle = Math.atan2(targetY, radial);
+  const shoulderOffset = lawOfCosines(distance, upper, lower);
+  const elbowInside = lawOfCosines(upper, lower, distance);
+  const angles = [
+    ((targetAngle - shoulderOffset) * 180) / Math.PI,
+    ((Math.PI - elbowInside) * 180) / Math.PI,
+    0,
+  ];
 
   const points = [{ x: 0, y: 0, z: 0 }];
   let radius = 0;
@@ -189,33 +193,15 @@ function fallbackSolveArm(x, y, z) {
     },
     target: { x, y, z },
     error_m: error,
-    iterations: 180,
+    iterations: 1,
     reachable: error < 0.04,
   };
 }
 
-function planarEnd(lengths, angles) {
-  let angle = 0;
-  const end = [0, 0];
-  for (let i = 0; i < lengths.length; i += 1) {
-    angle += (angles[i] * Math.PI) / 180;
-    end[0] += lengths[i] * Math.cos(angle);
-    end[1] += lengths[i] * Math.sin(angle);
-  }
-  return end;
-}
-
-function planarDerivative(lengths, angles, joint) {
-  let angle = 0;
-  const derivative = [0, 0];
-  for (let i = 0; i < lengths.length; i += 1) {
-    angle += (angles[i] * Math.PI) / 180;
-    if (i >= joint) {
-      derivative[0] += -lengths[i] * Math.sin(angle) * (Math.PI / 180);
-      derivative[1] += lengths[i] * Math.cos(angle) * (Math.PI / 180);
-    }
-  }
-  return derivative;
+function lawOfCosines(adjacentA, adjacentB, opposite) {
+  const numerator = adjacentA ** 2 + adjacentB ** 2 - opposite ** 2;
+  const denominator = 2 * adjacentA * adjacentB;
+  return Math.acos(clamp(numerator / denominator, -1, 1));
 }
 
 function clamp(value, min, max) {

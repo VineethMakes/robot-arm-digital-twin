@@ -132,43 +132,32 @@ pub fn solve_ik(model: &ArmModel, target: Vec3) -> IkSolution {
     let base_yaw_deg = target.z.atan2(target.x) * RAD;
     let radial_target = (target.x * target.x + target.z * target.z).sqrt();
     let y_target = target.y - model.base_height_m;
-    let target_2d = (radial_target, y_target);
+    let lower_arm_m = model.forearm_m + model.wrist_m;
+    let target_distance = radial_target.hypot(y_target);
+    let max_reach = model.upper_arm_m + lower_arm_m;
+    let min_reach = (model.upper_arm_m - lower_arm_m).abs();
+    let solved_distance = target_distance.clamp(min_reach + 0.001, max_reach - 0.001);
+    let target_angle = y_target.atan2(radial_target);
+    let shoulder_offset = law_of_cosines(solved_distance, model.upper_arm_m, lower_arm_m);
+    let elbow_inside = law_of_cosines(model.upper_arm_m, lower_arm_m, solved_distance);
 
-    let mut angles = [20.0, 50.0, -20.0];
-    let lengths = [model.upper_arm_m, model.forearm_m, model.wrist_m];
-    let limits = [model.limits[1], model.limits[2], model.limits[3]];
-    let mut iterations = 0;
-
-    for step in 0..180 {
-        iterations = step + 1;
-        let end = planar_end(&lengths, &angles);
-        let error = (target_2d.0 - end.0, target_2d.1 - end.1);
-        if hypot(error) < 0.002 {
-            break;
-        }
-
-        for joint in (0..angles.len()).rev() {
-            let derivative = planar_derivative(&lengths, &angles, joint);
-            let gradient = error.0 * derivative.0 + error.1 * derivative.1;
-            angles[joint] = limits[joint].clamp(angles[joint] + gradient * 18.0);
-        }
-    }
+    let shoulder_deg = (target_angle - shoulder_offset) * RAD;
+    let elbow_deg = (std::f64::consts::PI - elbow_inside) * RAD;
 
     let joints = JointAngles {
         base_yaw_deg: model.limits[0].clamp(base_yaw_deg),
-        shoulder_deg: angles[0],
-        elbow_deg: angles[1],
-        wrist_deg: angles[2],
+        shoulder_deg: model.limits[1].clamp(shoulder_deg),
+        elbow_deg: model.limits[2].clamp(elbow_deg),
+        wrist_deg: 0.0,
     };
     let pose = forward_kinematics(model, joints);
     let error_m = pose.end_effector.distance(target);
-    let max_reach = model.upper_arm_m + model.forearm_m + model.wrist_m;
 
     IkSolution {
         pose,
         target,
         error_m,
-        iterations,
+        iterations: 1,
         reachable: radial_target.hypot(y_target) <= max_reach + 0.01 && error_m < 0.04,
     }
 }
@@ -192,38 +181,19 @@ fn planar_points(model: &ArmModel, joints: JointAngles) -> Vec<(f64, f64)> {
     points
 }
 
-fn planar_end(lengths: &[f64; 3], angles_deg: &[f64; 3]) -> (f64, f64) {
-    let mut angle = 0.0;
-    let mut end = (0.0, 0.0);
-    for i in 0..3 {
-        angle += angles_deg[i] * DEG;
-        end.0 += lengths[i] * angle.cos();
-        end.1 += lengths[i] * angle.sin();
-    }
-    end
-}
-
-fn planar_derivative(lengths: &[f64; 3], angles_deg: &[f64; 3], joint: usize) -> (f64, f64) {
-    let mut angle = 0.0;
-    let mut derivative = (0.0, 0.0);
-    for i in 0..3 {
-        angle += angles_deg[i] * DEG;
-        if i >= joint {
-            derivative.0 += -lengths[i] * angle.sin() * DEG;
-            derivative.1 += lengths[i] * angle.cos() * DEG;
-        }
-    }
-    derivative
-}
-
-fn hypot(value: (f64, f64)) -> f64 {
-    (value.0 * value.0 + value.1 * value.1).sqrt()
+fn law_of_cosines(adjacent_a: f64, adjacent_b: f64, opposite: f64) -> f64 {
+    let numerator = adjacent_a.powi(2) + adjacent_b.powi(2) - opposite.powi(2);
+    let denominator = 2.0 * adjacent_a * adjacent_b;
+    (numerator / denominator).clamp(-1.0, 1.0).acos()
 }
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn solve_arm(target_x: f64, target_y: f64, target_z: f64) -> String {
-    let solution = solve_ik(&ArmModel::default(), Vec3::new(target_x, target_y, target_z));
+    let solution = solve_ik(
+        &ArmModel::default(),
+        Vec3::new(target_x, target_y, target_z),
+    );
     serde_json::to_string(&solution).expect("solution should serialize")
 }
 
