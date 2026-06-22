@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Robot Arm Digital Twin | VineethMakes</title>
+    <meta
+      name="description"
+      content="A Rust-powered robot arm digital twin by Vineeth Velmurugan, with inverse kinematics compiled to WebAssembly and rendered in Three.js."
+    />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="stage" aria-label="Robot arm digital twin viewport">
+        <canvas id="scene"></canvas>
+        <div class="hud" aria-live="polite">
+          <span id="solver-mode">Rust WASM solver</span>
+          <span id="reachability">Waiting for target</span>
+          <span id="error">0.000 m error</span>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="Arm controls">
+        <div>
+          <p class="eyebrow">VineethMakes</p>
+          <h1>Robot Arm Digital Twin</h1>
+          <p class="intro">
+            Drag the target with the controls and the Rust kinematics core solves
+            the arm pose in real time.
+          </p>
+        </div>
+
+        <label>
+          Target X
+          <input id="target-x" type="range" min="-0.45" max="0.55" step="0.01" value="0.36" />
+        </label>
+        <label>
+          Target Y
+          <input id="target-y" type="range" min="0.06" max="0.62" step="0.01" value="0.30" />
+        </label>
+        <label>
+          Target Z
+          <input id="target-z" type="range" min="-0.45" max="0.45" step="0.01" value="0.12" />
+        </label>
+
+        <dl class="readout">
+          <div>
+            <dt>Base yaw</dt>
+            <dd id="base-yaw">0 deg</dd>
+          </div>
+          <div>
+            <dt>Shoulder</dt>
+            <dd id="shoulder">0 deg</dd>
+          </div>
+          <div>
+            <dt>Elbow</dt>
+            <dd id="elbow">0 deg</dd>
+          </div>
+          <div>
+            <dt>Wrist</dt>
+            <dd id="wrist">0 deg</dd>
+          </div>
+        </dl>
+      </aside>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
